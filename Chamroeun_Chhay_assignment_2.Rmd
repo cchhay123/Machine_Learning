@@ -1,0 +1,179 @@
+---
+title: "Assignment 2 - Logistic Regression"
+author: "Chamroeun Chhay"
+date: "11 November 2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 2
+
+For this analysis we will be using churn data. The dataset is stored as `churn_data.rda` which can be loaded in by running the below command if the file is located in your working directory or else by accessing the file through file->open file
+
+```{r Load Data 2}
+load("churn_data.rda") # Load churn dataset
+```
+
+We can view a summary of this dataset by running `summary()`:
+
+```{r}
+summary(churn_data)
+```
+
+The variables we have are:
+
+* Gender - Whether the customer is a male or a female
+* SeniorCitizen - Whether the customer is a senior citizen or not (1,0)
+* Partner - Whether the customer has a partner or nor (Yes, No)
+* Dependents - Whether the customer has dependents or not (Yes, No)
+* tenure - Number of months the customer has stayed with the company
+* PhoneService - Whether the customer has a phone service of no (Yes, No)
+* MultipleLines - Whether the customer has multiple lines or not (Yes, No, No phone service)
+* InternetService - Customer's internet service provider (DSL, Fiber optic, No)
+* OnlineSecurity - Whether the customer has online security or not (Yes, No, No internet service)
+* OnlineBackup - Whether the customer has online backup or not (Yes, No, No internet service)
+* DeviceProtection - Whether the customer has tech support or not (Yes, No, No internet service)
+* StreamingTV - Whether the customer has streaming TV or not (Yes, No, No internet service)
+* StreamingMovies - Whether the customer has streaming movies or not (Yes, No, No internet service)
+* Contract - The contract term of the customer (Month-to-month, One year, Two year)
+* PaperlessBilling - Whether the customer has paperless billing or not (Yes, No)
+* PaymentMethod - The customer's payment method (Electronic CHECK, Mailed check, Bank transfer (automatic), Credit card (automatic))
+* MonthlyCharges - The amount charged to the customer monthly
+* TotalCharges - The total amount charged to the customer
+* Churn - Whether the customer churned or not (1 = Yes or 0 = No)
+
+
+The response variable for this dataset is `Churn`:
+
+```{r}
+summary(as.factor(churn_data$Churn))
+```
+
+
+For the assignment please carry out the following tasks/answer the following questions: (12 Points)
+
+
+* 1 - Create at least two visualizations potentially revealing factors with predictive power (2 Points)
+
+```{r}
+library(ggplot2)
+plot_data <- churn_data
+plot_data$Churn <- as.factor(plot_data$Churn)
+
+ggplot(plot_data, aes(x = TotalCharges, fill = Churn)) + geom_density(alpha = 0.5) + theme_set(theme_bw(base_size = 22) ) + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        panel.border = element_blank(), 
+        panel.background = element_blank()) + 
+  scale_fill_manual(values = c("1" = "red", "0" = "blue"), 
+                    labels = c("1" = "Churn", "0" = "Not Churn"))
+
+
+```
+
+The first graph shows the relationship to see if the total charges have any influence on whether or not a customer churns. It shows that there is a higher concentration of customers that churned at the lower end of the total charges. This makes sense as customers will stop payment after they churn,. keeping the total charges relatively low. 
+
+
+```{r}
+ggplot(plot_data, aes(x = MonthlyCharges, fill = Churn)) + geom_density(alpha = 0.5) + 
+  theme_set(theme_bw(base_size = 22) ) + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        panel.border = element_blank(), 
+        panel.background = element_blank()) + 
+  scale_fill_manual(values = c("1" = "red", "0" = "blue"), 
+                    labels = c("1" = "Churn", "0" = "Not Churn"))
+
+```
+
+This graph shows the potential relationship between Monthly Charges and whether or not a customer will churn. It is interesting to see that there is a high concentration of customer that will stay with the company when the monthly charges are relatively low. In turn, customers are more likely to churn when the monthly charges get higher. 
+
+* 2 - Fit a logistic regression model to the data. (Remember you can use `resp ~.,` to include all explanatory variables in the model) (2 Points)
+
+```{r}
+fit_1 <- glm(Churn ~., 
+             family = binomial(link = 'logit'),
+             data = churn_data)
+
+summary(fit_1)
+
+```
+
+
+
+* 3 - What features are significant in your logistic regression model? (1 Point)
+
+Answer: The features that are significant in the logistic regression model is tenure, Contract, PaperlessBilling and TotalCharges. 
+
+* 4 - What is the AIC of your logistic regression model?  (1 Point)
+
+Answer: AIC: 5874.3
+
+* 5 - Add an interaction term to the logistic regression model? (1 Point)
+
+```{r}
+fit_2 <- glm(Churn ~. + TotalCharges*Contract, 
+             family = binomial(link = 'logit'),
+             data = churn_data)
+
+summary(fit_2)
+
+```
+
+
+* 6 - Does the addition of the interaction term increase or decrease the AIC? What is the new AIC for the model? (1 Point)
+
+Answer: The addition of the interaction term decrease the AIC. The new AIC for the model is 5859. 
+
+* 7 - Fit a lasso logistic regression model to the data. (1 Point)
+
+```{r}
+library(glmnet)
+x_data <- churn_data
+x_data[,c(5, 18, 19)] <- as.data.frame(scale(churn_data[,c(5,18,19)]))
+
+x_var <- model.matrix(Churn ~., data = x_data)[, -1]
+
+set.seed(142)
+
+lambda_seq <- 10^seq(4, -4, by = -.1)
+
+
+cv.lasso <- cv.glmnet(x = x_var, 
+                 y = churn_data$Churn,
+                 alpha = 1, 
+                 family = "binomial", 
+                 lambda = lambda_seq, 
+                 nfolds = 10)
+best_lam <- cv.lasso$lambda.1se 
+
+best_lam
+
+lasso_fit_final <- glmnet(x = x_var, 
+                 y = churn_data$Churn,
+                 alpha = 1, 
+                 family = "binomial", 
+                 lambda = best_lam)
+
+coef(lasso_fit_final)
+```
+
+
+* 8 - Which coefficients were non-zero in the lasso model? Were they positive or negative? What does this imply? (1 Point)
+
+Answer: The coefficients that were non-zero and positive in the lasso model are: SeniorCitizen,MultipleLinesYes, InternetServiceFiber optic, StreamingTVYes, StreamingMoviesYes, PaperlessBillingYes, PaymentMethodElectronic check. 
+
+The coefficients that were non-zero and negative in the lasso model are:
+DependentsYes, tenure, PhoneServiceYes, InternetServiceNo, OnlineSecurityNo internet service, OnlineSecurityYes, OnlineBackupNo internet service, DeviceProtectionNo internet service, TechSupportNo internet service, TechSupportYes, StreamingTVNo internet service, StreamingMoviesNo internet service, ContractOne year, ContractTwo year. 
+
+The positive coefficients shows the increased likelihood of a customer churning. The negative coefficient shows the decreased likelihood of them churning. 
+
+2 Points for analysis decisions and code quality.
+
+Please submit an an R-markdown document with the answers, optionally you can submit an R-script with the code used for your analysis and a document answering the specific questions, you can use word, pdf etc.
+
+Assignments can be submitted via Canvas or by email to mbarron2@nd.edu. 
+

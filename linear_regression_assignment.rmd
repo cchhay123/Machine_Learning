@@ -1,0 +1,187 @@
+---
+title: "Linear Regression Assignment"
+author: "Chamroeun Chhay"
+date: "02/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set Up
+
+```{r}
+load("~/Desktop/Machine Learning/Linear Regression/nba_data.rda") # Load data
+```
+
+
+The dataset we are using contains statistics on NBA games from 2010 to 2021, the features in the data are:
+
+The statistics calculated are:
+
+* fgm - Field goals made
+* fga - Field goals attempted
+* fg3m - 3 point shots made
+* fg3a - 3 point shots attempted
+* fg2m - 2 point shots made
+* fg2a - 2 point shots attempted
+* ftm - Free throws made
+* fta - Free throws attempted
+* oreb - Offensive rebounds
+* dreb - Defensive rebounds
+* treb - Total rebounds
+* ast - Assists
+* stl - Steals
+* blk - Blocks
+* tov - Turnovers
+* pf - Personal fouls
+* pts - Points scored
+* pctfg - Field goal percentage
+* pctfg2 - 2 point field goal percentage
+* pctfg3 - 3 point field goal percentage
+* pctft - Free throw percentage
+
+These are calculated for the different aspects of the matchup denoted by the following adjustments to the variable names:
+
+* _1_off - Offensive stats for team 1 in previous games
+* _1_def - Defensive stats for team 1 in previous games (That is stats from team 1's opponents)
+* _2_off - Offensive stats for team 2 in previous games
+* _2_def - Defensive stats for team 2 in previous games (That is stats from team 2's opponents)
+
+There is also an ELO rating function which can be used to provide a ranking of the teams:
+
+https://medium.com/purple-theory/what-is-elo-rating-c4eb7a9061e0
+
+The objective of our analysis is to determine the key factors involved in winning NBA games, so we will use point differential as our response variable.
+
+```{r}
+# Create response variable
+nba_data$point_diff <- nba_data$team_1_points - nba_data$team_2_points
+```
+
+Before running the model we want to drop all of the unique identifiers for the games and the points used to calculate the differential:
+
+```{r}
+# Drop columns 
+nba_model <- nba_data[,c(8:91, 94:96)]
+```
+
+
+# Assignment
+
+Please complete the following tasks and answer the following questions:
+
+
+* 1 - Create two visualizations which may reveal interesting relationships in the dataset. Describe what you see in the visualization. (2 Points) 
+
+Answer: The first graph is created to see if the point_diff data is skewed in any way. The results shows a double peak with a valley in the middle. It shows that the data is being recorded twice, with the losing points and the winning points mirroring each other. It can also be noted that there is a dip at 0 because there is no game that ends with a tie. 
+
+The second graph is created to see if there is any relationship between the elo ranking and the point difference in the game. Although the relationship is not that significant, there is a positive relationship between the elo ranking and point difference. The variable alone would not be a good predictor in this dataset. 
+
+```{r}
+library(ggplot2)
+ggplot(nba_model, aes(x = point_diff)) + 
+  geom_density(fill = "blue", alpha = 0.3) + 
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) +
+  labs(x = "Point Differences", # Set plot labels
+       title = "Density plot of Point Differences")
+
+```
+
+```{r}
+ggplot(nba_model,
+              aes(y = point_diff, 
+                  x = elo_1)) + 
+  geom_point(color = "blue", alpha = 0.3) +
+  geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) +
+  labs(y = "Point Difference", 
+       x = "Elo Ranking",
+       title = "Elo Ranking v Point Difference")
+
+```
+
+* 2 - Run a linear regression model on the dataset using `point_diff` as the response variable and all other variables in the model data as explanatory variables. (1 Point)
+
+```{r}
+lm1 <- lm(point_diff ~., data = nba_model)
+
+summary(lm1)
+```
+
+* 3 - What features in the model were significant (At 0.1% level)? Do these variables have a positive or negative effect on a teams change of winning a game? (1 Point)
+
+dreb_1_off (positive)
+stl_1_off  (positive)
+tov_1_off  (negative)
+ast_1_def  (negative)
+ast_2_def  (positive)
+elo_2      (negative)
+elo_1      (positive)
+
+The variables with positive labels mean that the variables positively contribute to the final score of the game. The negative labels mean that these variables hinder a team from winning the game.
+
+```{r}
+summary_lm1 <- summary(lm1)
+summary_lm1$coefficients[summary_lm1$coefficients[,4] < 0.001,]
+```
+
+* 4 - Visualize two potential interaction terms and their relationship with the response variable. Are these interaction terms likely to have a significant relationship with the response variable? (2 Points) 
+
+Answer: Judging from the scatter plots, it shows that the two interaction terms I picked out don't have a significant relationship with the response variable. There is no distinct portion of the graph indicating any differing relationship with the response variable, and the slopes of the three segments for which graph overlap signicantly.
+
+```{r}
+ggplot(nba_model[!is.na(nba_model$dreb_1_off),], 
+       aes(color = cut(dreb_1_off, 3), y = point_diff, x = elo_1)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE) + 
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) +
+  labs(y = "Point Difference", 
+       x = "Elo 1 Ranking",
+       title = "Elo 1 Ranking * Defensive Rebound v Point Difference")
+```
+
+```{r}
+ggplot(nba_model[!is.na(nba_model$tov_1_off ),], 
+       aes(color = cut(tov_1_off, 3), y = point_diff, x = elo_2)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE) + 
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) +
+  labs(y = "Point Difference", 
+       x = "Elo 2 Ranking * Turnover",
+       title = "Elo 2 Ranking * Turnover v Point Difference")
+```
+
+
+
+* 5 - Fit a linear regression model with the two interaction terms included. (1 Point)
+
+```{r}
+lm3 <- lm(point_diff ~. + elo_1 * dreb_1_off + elo_2 * tov_1_off, data = nba_model)
+
+summary(lm3)
+```
+
+* 6 - How has the inclusion of the interaction terms affected the coefficients in the model? How has the inclusion of interaction terms affected the model fit? (1 Point)
+
+Answer: Looking at the regression model above, there has not been much adjustment in the multiple and adjusted R-squared values in our model. dreb_1_off\*elo_1 and tov_1_off\*elo_2 interaction did not end up being very significant. 
+
+
+2 Points for code quality and analysis decisions.
